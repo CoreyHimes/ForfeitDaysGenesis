@@ -12,13 +12,16 @@ void positionPlayer();
 void checkCollision();
 void initGame();
 void titleScreen();
-
-int player_pos_x = 144;
-int player_pos_y = 200;
-int player_vel_x = 0;
+int framecount = 0;
+fix16 player_pos_x = FIX16(144);
+fix16 player_pos_y = FIX16(100);
+fix16 player_vel_x = FIX16(0);
 const int player_width = 8;
 const int player_height = 8;
-int player_vel_y = 0;
+fix16 player_vel_y = FIX16(0);
+bool player_is_jumping = FALSE;
+
+const int scrollspeed = 1;
 
 int load_title_screen;  //maybe make an enum of states later
 
@@ -37,6 +40,7 @@ int main()
     JOY_init();
     JOY_setEventHandler( &handleInput );
     VDP_setPlanSize(32,32);
+    VDP_setScrollingMode(HSCROLL_PLANE,VSCROLL_PLANE);
     VDP_loadTileSet(brick.tileset, 1, DMA);
     PAL_setPalette(PAL1, brick.palette->data);
     PAL_setPalette(PAL2, character.palette->data);
@@ -45,17 +49,21 @@ int main()
     initGame();
     XGM_setLoopNumber(0);
     XGM_startPlay(&intro);
+    int offset = 0;
     while(1)
     {
+        VDP_setHorizontalScroll(BG_B, offset -= scrollspeed);
         if (load_title_screen == 1){
             
             titleScreen();
             SPR_update();
             VDP_waitVSync();
+            continue;
         }
         positionPlayer();
         checkCollision();
         SPR_update();
+        framecount += 1;
         VDP_waitVSync();
     }
     return (0);
@@ -64,8 +72,8 @@ int main()
 void initGame()
 {
     VDP_clearTextArea(0,10,40,10);
-    player_pos_x = 144;
-    player_pos_y = 200;
+    player_pos_x = FIX16(144);
+    player_pos_y = FIX16(100);
     badguy_pos_x = 220;
     XGM_setLoopNumber(-1);
     XGM_startPlay(&cave);
@@ -80,8 +88,18 @@ void initGame()
 }
 void positionPlayer()
 {
-    player_pos_x += player_vel_x;
-    player_pos_y += player_vel_y;
+    player_pos_y = fix16Add(player_pos_y, player_vel_y);
+    player_pos_x = fix16Add(player_pos_x, player_vel_x);
+    if (player_is_jumping == TRUE)
+    {
+        player_vel_y = fix16Add(player_vel_y, FIX16(.1));
+    }
+    if (fix16ToInt(player_pos_y) >= 100 && player_is_jumping == TRUE)
+    {
+        player_is_jumping = FALSE;
+        player_vel_y = FIX16(0);
+        player_pos_y = FIX16(100);
+    }
     if (player_vel_x > 0) 
     {
         SPR_setHFlip(player, FALSE);
@@ -90,14 +108,14 @@ void positionPlayer()
     {
         SPR_setHFlip(player, TRUE);
     }
-    SPR_setPosition(player, player_pos_x, player_pos_y);
+    SPR_setPosition(player, fix16ToInt(player_pos_x), fix16ToInt(player_pos_y));
 }
 
 void checkCollision()
 {
     if ((player_pos_x < badguy_pos_x) & ((player_pos_x + player_width) > badguy_pos_x))
     {
-        player_pos_x = 0;
+        player_pos_x = FIX16(0);
     }
 }
 
@@ -125,28 +143,32 @@ void handleInput(u16 gamePad, u16 changed, u16 state)
     {
         if (state & BUTTON_RIGHT)
         {
-            player_vel_x = 1;
+            player_vel_x = FIX16(1);
         }
         else if (state & BUTTON_LEFT)
         {
-            player_vel_x = -1;
+            player_vel_x = FIX16(-1);
         }
         else
         {
             if ((changed & BUTTON_RIGHT) | (changed & BUTTON_LEFT))
             {
-                player_vel_x = 0;
+                player_vel_x = FIX16(0);
             }
         }
         if (state & BUTTON_C)
         {
-            player_vel_y = -1;
+            if (player_is_jumping == FALSE)
+            {
+                player_is_jumping = TRUE;
+                player_vel_y = FIX16(-3);
+            }
         }
         else
         {
             if (changed & BUTTON_C)
             {
-                player_vel_y = 0;
+                //player_vel_y = 0;
             }
         }
 
