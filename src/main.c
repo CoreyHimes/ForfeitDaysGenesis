@@ -7,31 +7,33 @@
 #include <resources.h>
 #define TRUE 1
 #define FALSE 0
-void handleInput(u16 gamePad, u16 changed, u16 state);
-void positionPlayer();
-void checkCollision();
-void initGame();
-void titleScreen();
-void drawBackground();
 typedef struct
 {
     fix16 x;
     fix16 y;
     fix16 x_vel;
     fix16 y_vel;
-    int sprite_height;
-    int sprite_width;
+    int height;
+    int width;
     Sprite* sprite;
 } Entity;
 
-Entity player = {FIX16(100), FIX16(100), FIX16(0), FIX16(0), 32, 16, };
-bool player_is_jumping = FALSE;
+void handleInput(u16 gamePad, u16 changed, u16 state);
+void positionPlayer();
+void checkCollision(Entity entity1, Entity entity2);
+void initGame();
+void titleScreen();
+void drawBackground();
 
-const int scrollspeeda = 1;
-const int scrollspeedb = 2;
+
+Entity player = {FIX16(100), FIX16(100), FIX16(0), FIX16(0), 32, 16, };
+Entity badguy = {FIX16(200), FIX16(100), FIX16(-2), FIX16(0), 16, 16, };
+bool player_is_jumping = FALSE;
 
 int load_title_screen;  //maybe make an enum of states later
 
+int camera_x = 0;
+int camera_y = 0;
 TileMap* background;
 
 int main()
@@ -42,11 +44,9 @@ int main()
     VDP_setPlanSize(32,32);
     VDP_setScrollingMode(HSCROLL_PLANE,VSCROLL_PLANE);
     VDP_loadTileSet(brick.tileset, 4, CPU);
-    //VDP_loadTileSet(roof.tileset, 2, CPU);
-    //VDP_loadTileSet(roofedge.tileset, 3, CPU);
     PAL_setPalette(PAL1, brick.palette->data);
     PAL_setPalette(PAL2, character.palette->data);
-    PAL_setPalette(PAL3, villain.palette->data);
+    PAL_setPalette(PAL3, enemy.palette->data);
     
     initGame();
     XGM_setLoopNumber(0);
@@ -62,10 +62,15 @@ int main()
             VDP_waitVSync();
             continue;
         }
-        VDP_setHorizontalScroll(BG_B, offsetb -= scrollspeedb);
-        VDP_setHorizontalScroll(BG_A, offseta -= scrollspeeda);
+        VDP_setHorizontalScroll(BG_B, offsetb -= fix16ToInt(player.x_vel));
+        VDP_setHorizontalScroll(BG_A, offseta -= fix16ToInt(player.x_vel)/2);
+        if (offseta <= -256) offseta = 0;
+        if (offsetb <= -256) offsetb = 0;
+        checkCollision(player, badguy);
         positionPlayer();
-        checkCollision();
+        
+        
+        SPR_setPosition(badguy.sprite, fix16ToInt(badguy.x) , fix16ToInt(badguy.y));
         SPR_update();
         VDP_waitVSync();
     }
@@ -76,15 +81,17 @@ void initGame()
 {
     VDP_clearTextArea(0,10,40,10);
     player.x = FIX16(144);
-    player.y = FIX16(100);
-    //badguy_pos_x = 220;
+    player.y = FIX16(player.height);
+    badguy.x = FIX16(200);
+    badguy.y = FIX16(70);
+
     XGM_setLoopNumber(-1);
     XGM_startPlay(&boss);
     
     drawBackground();
     SPR_init(0,0,0);
+    badguy.sprite =  SPR_addSprite(&enemy, badguy.x, badguy.y, TILE_ATTR(PAL2, 0, FALSE, FALSE));
     player.sprite =  SPR_addSprite(&character, player.x, player.y, TILE_ATTR(PAL2, 0, FALSE, FALSE));
-    //badguy = SPR_addSprite(&villain, badguy_pos_x, badguy_pos_y, TILE_ATTR(PAL3, 0, FALSE, FALSE));
 }
 
 void drawBackground()
@@ -131,16 +138,23 @@ void positionPlayer()
     {
         SPR_setHFlip(player.sprite, TRUE);
     }
-    SPR_setPosition(player.sprite, fix16ToInt(player.x), fix16ToInt(player.y));
+    SPR_setPosition(player.sprite, fix16ToInt(player.x) , fix16ToInt(player.y));
 }
 
-void checkCollision()
+//box collision only for now
+void checkCollision(Entity entity1, Entity entity2)
 {
-    //nothing to collide with
-    //if ((player_pos_x < badguy_pos_x) & ((player_pos_x + player_width) > badguy_pos_x))
-    //{
-    //    player_pos_x = FIX16(0);
-    //}
+    if (((entity1.x < entity2.x) & ((entity1.width + fix16ToInt(entity1.x)) > fix16ToInt(entity2.x))) |
+        ((entity2.x < entity1.x) & ((entity2.width + fix16ToInt(entity2.x)) > fix16ToInt(entity1.x))))
+    {
+        if (((entity1.y < entity2.y) & ((entity1.height + fix16ToInt(entity1.y)) > fix16ToInt(entity2.y))) |
+         ((entity2.y < entity1.y) & ((entity2.height + fix16ToInt(entity2.y)) > fix16ToInt(entity1.y))))
+        //if (((entity1.y < entity2.y) & ((fix16ToInt(entity1.y) + entity1.height) > fix16ToInt(entity2.y))) |
+        //    ((fix16ToInt(entity1.y) < (fix16ToInt(entity2.y) + entity2.height) & ((fix16ToInt(entity1.y) + entity1.height) > (fix16ToInt(entity2.y) + entity2.height)))))
+        {
+            player.x = FIX16(10);
+        }
+    }
 }
 
 void titleScreen()
@@ -167,11 +181,11 @@ void handleInput(u16 gamePad, u16 changed, u16 state)
     {
         if (state & BUTTON_RIGHT)
         {
-            player.x_vel = FIX16(1);
+            player.x_vel = FIX16(2);
         }
         else if (state & BUTTON_LEFT)
         {
-            player.x_vel = FIX16(-1);
+            player.x_vel = FIX16(-2);
         }
         else
         {

@@ -3,9 +3,9 @@
 
 extern const u8 intro[768];
 extern const u8 cave[1536];
-extern const u8 boss[3072];
+extern const u8 boss[5376];
 extern const SpriteDefinition character;
-extern const SpriteDefinition villain;
+extern const SpriteDefinition enemy;
 extern const Image brick;
 extern const Image roof;
 extern const Image roofedge;
