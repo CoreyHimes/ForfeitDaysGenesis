@@ -6,13 +6,17 @@
 #include <resources.h>
 #define TRUE 1
 #define FALSE 0
+
+#define ANIMATION_STAND 0
+#define ANIMATION_RUN 1
+
 #define SFX_TEST 64
 typedef struct
 {
-    fix16 x;
-    fix16 y;
-    fix16 x_vel;
-    fix16 y_vel;
+    fix32 x;
+    fix32 y;
+    fix32 x_vel;
+    fix32 y_vel;
     int height;
     int width;
     Sprite* sprite;
@@ -21,7 +25,10 @@ typedef struct
 
 
 int lives;
+u16 tilemapBuffer[42*32];
 
+s16 camera_x;
+s16 camera_y;
 void handleInput(u16 gamePad, u16 changed, u16 state);
 void positionPlayer();
 void checkCollision(Entity entity1, Entity entity2);
@@ -29,21 +36,18 @@ void initGame();
 void titleScreen();
 void drawBackground();
 void respawnPlayer();
+void animatePlayer();
 
-Entity player = {FIX16(100), FIX16(100), FIX16(0), FIX16(0), 32, 16, };
-Entity badguy = {FIX16(200), FIX16(100), FIX16(-2), FIX16(0), 16, 16, };
+Entity player = {FIX32(100), FIX32(100), FIX32(0), FIX32(0), 32, 16, };
+Entity badguy = {FIX32(200), FIX32(100), FIX32(-2), FIX32(0), 16, 16, };
 bool player_is_jumping = FALSE;
 
 int load_title_screen;  //maybe make an enum of states later
 int paused;
 
-int camera_x = 0;
-int camera_y = 0;
-TileMap* background;
 
 int main()
 {
-    XGM_setPCM(SFX_TEST, test, sizeof(test));
     load_title_screen = TRUE;
     paused = FALSE;
     JOY_init();
@@ -55,6 +59,7 @@ int main()
     PAL_setPalette(PAL2, character.palette->data);
     PAL_setPalette(PAL3, enemy.palette->data);
     
+
     initGame();    
     XGM_setLoopNumber(0);
     XGM_startPlay(&intro);
@@ -73,13 +78,14 @@ int main()
         {
             continue; //don't change anything if paused
         }
-        VDP_setHorizontalScroll(BG_B, offsetb -= fix16ToInt(player.x_vel));
-        VDP_setHorizontalScroll(BG_A, offseta -= fix16ToInt(player.x_vel)/2);
+        VDP_setHorizontalScroll(BG_B, offsetb -= fix32ToInt(player.x_vel));
+        VDP_setHorizontalScroll(BG_A, offseta -= fix32ToInt(player.x_vel)/2);
         if (offseta <= -256) offseta = 0;
         if (offsetb <= -256) offsetb = 0;
         checkCollision(player, badguy);
-        positionPlayer();        
-        SPR_setPosition(badguy.sprite, fix16ToInt(badguy.x) , fix16ToInt(badguy.y));
+        positionPlayer();      
+        animatePlayer();  
+        SPR_setPosition(badguy.sprite, fix32ToInt(badguy.x) , fix32ToInt(badguy.y));
         SPR_update();
         VDP_waitVSync();
     }
@@ -89,10 +95,10 @@ int main()
 void initGame()
 {
     VDP_clearTextArea(0,10,40,10);
-    player.x = FIX16(144);
-    player.y = FIX16(player.height);
-    badguy.x = FIX16(200);
-    badguy.y = FIX16(70);
+    player.x = FIX32(144);
+    player.y = FIX32(player.height);
+    badguy.x = FIX32(200);
+    badguy.y = FIX32(70);
     lives = 3;
 
     XGM_setLoopNumber(-1);
@@ -128,17 +134,45 @@ void drawBackground()
 }
 void positionPlayer()
 {
-    player.y = fix16Add(player.y_vel, player.y);
-    player.x = fix16Add(player.x_vel, player.x);
+    player.y = fix32Add(player.y_vel, player.y);
+    player.x = fix32Add(player.x_vel, player.x);
     if (player_is_jumping == TRUE)
     {
-        player.y_vel = fix16Add(player.y_vel, FIX16(.1));
+        player.y_vel = fix32Add(player.y_vel, FIX32(.1));
     }
-    if (fix16ToInt(player.y) >= 100 && player_is_jumping == TRUE)
+    if (fix32ToInt(player.y) >= 100 && player_is_jumping == TRUE)
     {
         player_is_jumping = FALSE;
-        player.y_vel = FIX16(0);
-        player.y = FIX16(100);
+        player.y_vel = FIX32(0);
+        player.y = FIX32(100);
+    }
+    SPR_setPosition(player.sprite, fix32ToInt(player.x) , fix32ToInt(player.y));
+}
+
+//box collision only for now
+void checkCollision(Entity entity1, Entity entity2)
+{
+    if (((entity1.x < entity2.x) & ((entity1.width + fix32ToInt(entity1.x)) > fix32ToInt(entity2.x))) |
+        ((entity2.x < entity1.x) & ((entity2.width + fix32ToInt(entity2.x)) > fix32ToInt(entity1.x))))
+    {
+        if (((entity1.y < entity2.y) & ((entity1.height + fix32ToInt(entity1.y)) > fix32ToInt(entity2.y))) |
+         ((entity2.y < entity1.y) & ((entity2.height + fix32ToInt(entity2.y)) > fix32ToInt(entity1.y))))
+        {
+            respawnPlayer();
+            
+        }
+    }
+}
+
+void animatePlayer()
+{
+    if (player.x_vel != 0)
+    {
+        SPR_setAnim(player.sprite, ANIMATION_RUN);
+    }
+    else
+    {
+        SPR_setAnim(player.sprite, ANIMATION_STAND);
     }
     if (player.x_vel > 0) 
     {
@@ -147,22 +181,6 @@ void positionPlayer()
     else if (player.x_vel < 0)
     {
         SPR_setHFlip(player.sprite, TRUE);
-    }
-    SPR_setPosition(player.sprite, fix16ToInt(player.x) , fix16ToInt(player.y));
-}
-
-//box collision only for now
-void checkCollision(Entity entity1, Entity entity2)
-{
-    if (((entity1.x < entity2.x) & ((entity1.width + fix16ToInt(entity1.x)) > fix16ToInt(entity2.x))) |
-        ((entity2.x < entity1.x) & ((entity2.width + fix16ToInt(entity2.x)) > fix16ToInt(entity1.x))))
-    {
-        if (((entity1.y < entity2.y) & ((entity1.height + fix16ToInt(entity1.y)) > fix16ToInt(entity2.y))) |
-         ((entity2.y < entity1.y) & ((entity2.height + fix16ToInt(entity2.y)) > fix16ToInt(entity1.y))))
-        {
-            respawnPlayer();
-            
-        }
     }
 }
 
@@ -175,7 +193,7 @@ void respawnPlayer()
          XGM_startPlay(&intro);
         return;
     }
-    player.x = FIX16(10);
+    player.x = FIX32(10);
     lives--;
 }
 
@@ -218,17 +236,17 @@ void handleInput(u16 gamePad, u16 changed, u16 state)
         }
         if (state & BUTTON_RIGHT)
         {
-            player.x_vel = FIX16(2);
+            player.x_vel = FIX32(2);
         }
         else if (state & BUTTON_LEFT)
         {
-            player.x_vel = FIX16(-2);
+            player.x_vel = FIX32(-2);
         }
         else
         {
             if ((changed & BUTTON_RIGHT) | (changed & BUTTON_LEFT))
             {
-                player.x_vel = FIX16(0);
+                player.x_vel = FIX32(0);
             }
         }
         if (state & BUTTON_C)
@@ -236,8 +254,8 @@ void handleInput(u16 gamePad, u16 changed, u16 state)
             if (player_is_jumping == FALSE)
             {
                 player_is_jumping = TRUE;
-                player.y_vel = FIX16(-3);
-                XGM_startPlayPCM(SFX_TEST,1,SOUND_PCM_CH2);
+                player.y_vel = FIX32(-3);
+                //XGM_startPlayPCM(SFX_TEST,1,SOUND_PCM_CH2);
             }
         }
         else
