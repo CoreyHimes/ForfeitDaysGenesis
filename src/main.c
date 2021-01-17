@@ -1,5 +1,4 @@
 /**
- * Hello World Example
  * Created With Genesis-Code extension for Visual Studio Code
  * Use "Genesis Code: Compile" command to compile this program.
  **/
@@ -7,6 +6,7 @@
 #include <resources.h>
 #define TRUE 1
 #define FALSE 0
+#define SFX_TEST 64
 typedef struct
 {
     fix16 x;
@@ -18,19 +18,24 @@ typedef struct
     Sprite* sprite;
 } Entity;
 
+
+
+int lives;
+
 void handleInput(u16 gamePad, u16 changed, u16 state);
 void positionPlayer();
 void checkCollision(Entity entity1, Entity entity2);
 void initGame();
 void titleScreen();
 void drawBackground();
-
+void respawnPlayer();
 
 Entity player = {FIX16(100), FIX16(100), FIX16(0), FIX16(0), 32, 16, };
 Entity badguy = {FIX16(200), FIX16(100), FIX16(-2), FIX16(0), 16, 16, };
 bool player_is_jumping = FALSE;
 
 int load_title_screen;  //maybe make an enum of states later
+int paused;
 
 int camera_x = 0;
 int camera_y = 0;
@@ -38,7 +43,9 @@ TileMap* background;
 
 int main()
 {
-    load_title_screen = 1;
+    XGM_setPCM(SFX_TEST, test, sizeof(test));
+    load_title_screen = TRUE;
+    paused = FALSE;
     JOY_init();
     JOY_setEventHandler( &handleInput );
     VDP_setPlanSize(32,32);
@@ -48,28 +55,30 @@ int main()
     PAL_setPalette(PAL2, character.palette->data);
     PAL_setPalette(PAL3, enemy.palette->data);
     
-    initGame();
+    initGame();    
     XGM_setLoopNumber(0);
     XGM_startPlay(&intro);
     int offseta = 0;
     int offsetb = 0;
     while(1)
     {
-        if (load_title_screen == 1){
+        if (load_title_screen == TRUE){
             
             titleScreen();
             SPR_update();
             VDP_waitVSync();
             continue;
         }
+        if (paused == TRUE)
+        {
+            continue; //don't change anything if paused
+        }
         VDP_setHorizontalScroll(BG_B, offsetb -= fix16ToInt(player.x_vel));
         VDP_setHorizontalScroll(BG_A, offseta -= fix16ToInt(player.x_vel)/2);
         if (offseta <= -256) offseta = 0;
         if (offsetb <= -256) offsetb = 0;
         checkCollision(player, badguy);
-        positionPlayer();
-        
-        
+        positionPlayer();        
         SPR_setPosition(badguy.sprite, fix16ToInt(badguy.x) , fix16ToInt(badguy.y));
         SPR_update();
         VDP_waitVSync();
@@ -84,6 +93,7 @@ void initGame()
     player.y = FIX16(player.height);
     badguy.x = FIX16(200);
     badguy.y = FIX16(70);
+    lives = 3;
 
     XGM_setLoopNumber(-1);
     XGM_startPlay(&boss);
@@ -149,12 +159,24 @@ void checkCollision(Entity entity1, Entity entity2)
     {
         if (((entity1.y < entity2.y) & ((entity1.height + fix16ToInt(entity1.y)) > fix16ToInt(entity2.y))) |
          ((entity2.y < entity1.y) & ((entity2.height + fix16ToInt(entity2.y)) > fix16ToInt(entity1.y))))
-        //if (((entity1.y < entity2.y) & ((fix16ToInt(entity1.y) + entity1.height) > fix16ToInt(entity2.y))) |
-        //    ((fix16ToInt(entity1.y) < (fix16ToInt(entity2.y) + entity2.height) & ((fix16ToInt(entity1.y) + entity1.height) > (fix16ToInt(entity2.y) + entity2.height)))))
         {
-            player.x = FIX16(10);
+            respawnPlayer();
+            
         }
     }
+}
+
+void respawnPlayer()
+{
+    if (lives == 1) 
+    {
+        load_title_screen = TRUE;
+        XGM_setLoopNumber(0);
+         XGM_startPlay(&intro);
+        return;
+    }
+    player.x = FIX16(10);
+    lives--;
 }
 
 void titleScreen()
@@ -165,20 +187,35 @@ void titleScreen()
 
 void handleInput(u16 gamePad, u16 changed, u16 state)
 {
-    if (load_title_screen == 1) 
-    {
-        if (gamePad == JOY_1)
-        {
-            if (state & BUTTON_START)
-            {
-                load_title_screen = 0;   
-                initGame();  
-                   
-            }    
-        }
-    }
     if (gamePad == JOY_1)
     {
+        if (state & BUTTON_START)
+        {
+            if (load_title_screen == FALSE)
+            {
+                if (paused == FALSE)
+                {
+                    paused = TRUE;
+                    XGM_pausePlay();
+
+                }
+                else {
+                    paused = FALSE;
+                    XGM_resumePlay();
+                    
+                }
+
+            } else 
+            {
+                load_title_screen = FALSE;   
+                initGame();                   
+            }  
+
+        }
+        
+        if (paused == TRUE){
+            return; //return early if paused, no need to check anything besides start
+        }
         if (state & BUTTON_RIGHT)
         {
             player.x_vel = FIX16(2);
@@ -200,6 +237,7 @@ void handleInput(u16 gamePad, u16 changed, u16 state)
             {
                 player_is_jumping = TRUE;
                 player.y_vel = FIX16(-3);
+                XGM_startPlayPCM(SFX_TEST,1,SOUND_PCM_CH2);
             }
         }
         else
