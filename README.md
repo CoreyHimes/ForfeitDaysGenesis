@@ -1,3 +1,3 @@
-# My Awesome Game
+# ForfeitDays
 
-This is My Awesome 16 Bit Cartridge game for mega Drive
+This is a platform game for the sega genesis.
