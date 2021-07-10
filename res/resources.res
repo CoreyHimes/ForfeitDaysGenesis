@@ -1,6 +1,14 @@
 
-IMAGE  foregroundtilesheet   "tiles/Level1_TileSheet_A.png"  0
-IMAGE  tilesheet    "tiles/tilesheet.png"  0
+PALETTE palette_background "maps/Level_1_FG.png"
+PALETTE palette_foreground "maps/Level_1_BG.png"
+PALETTE palette_char "sprites/playermultianimation.png"
+
+TILESET bga_tileset "maps/Level_1_FG.png" BEST ALL
+TILESET bgb_tileset "maps/Level_1_BG.png" BEST ALL
+
+MAP bga_map "maps/Level_1_FG.png" bga_tileset BEST 0
+MAP bgb_map "maps/Level_1_BG.png" bgb_tileset BEST 0
+
 SPRITE character  "sprites/playermultianimation.png" 2 4 NONE 5
 SPRITE enemy  "sprites/enemy.png" 2 2 NONE
 XGM    intro  "music/intro.vgm"

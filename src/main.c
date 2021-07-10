@@ -22,8 +22,6 @@ typedef struct
     Sprite* sprite;
 } Entity;
 
-
-
 int lives;
 int camera_x = 0;
 s16 camera_y;
@@ -32,12 +30,9 @@ void positionPlayer();
 void checkCollision(Entity entity1, Entity entity2);
 void initGame();
 void titleScreen();
-void drawBackground();
 void respawnPlayer();
 void animatePlayer();
-void updateBackground();
 void backgroundCollision();
-void calculateCamera();
 
 Entity player = {FIX32(100), FIX32(100), FIX32(0), FIX32(0), 32, 16, };
 Entity badguy = {FIX32(200), FIX32(100), FIX32(-2), FIX32(0), 16, 16, };
@@ -57,7 +52,18 @@ u16 bgBaseTileIndex[2];
 
 int main()
 {
+    u16 palette[64];
+    memcpy(&palette[0], palette_background.data, 16 * 2);
+    memcpy(&palette[16], palette_foreground.data, 16 * 2);
+    memcpy(&palette[32], palette_char.data, 16 * 2);
+    
+
     u16 ind;
+    // set all palette to black
+    VDP_setPaletteColors(0, (u16*) palette_black, 64);
+
+    PAL_fadeIn(0, (4 * 16) - 1, palette, 20, FALSE);
+
     load_title_screen = TRUE;
     paused = FALSE;
     JOY_init();
@@ -75,39 +81,23 @@ int main()
     bufOffset = 0;
     
     // init backgrounds
-    bga = MAP_create(&bga_map, BG_A, TILE_ATTR_FULL(0, FALSE, FALSE, FALSE, bgBaseTileIndex[0]));
-    bgb = MAP_create(&bgb_map, BG_B, TILE_ATTR_FULL(0, FALSE, FALSE, FALSE, bgBaseTileIndex[1]));
+    bga = MAP_create(&bga_map, BG_A, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, bgBaseTileIndex[0]));
+    bgb = MAP_create(&bgb_map, BG_B, TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, bgBaseTileIndex[1]));
 
     initGame();    
     XGM_setLoopNumber(0);
     XGM_startPlay(&intro);
-    int offseta = 0;
-    int offsetb = 0;
-    int x = 0;
-    int y = 800;
     while(1)
     {
-        MAP_scrollTo(bga, x, y);
-        // scrolling is slower on BGB
-        MAP_scrollTo(bgb, x<<3, y<<5);
+        MAP_scrollTo(bga, camera_x, 0);
+        MAP_scrollTo(bgb, camera_x>>4, 0);
         positionPlayer();
         SPR_update();
-        // sync frame and do vblank process
         SYS_doVBlankProcess();
-        // reset tilemap buffer position after update
-        bufOffset = 0;
-        x++;
     }
     return (0);
 }
 
-void calculateCamera()
-{
-    camera_x = player.x_vel;
-
-     VDP_setHorizontalScroll(BG_A, fix32ToInt(camera_x));  //Tieing these to player velocity is wrong, eventually tie this to a "camera"
-    //VDP_setHorizontalScroll(BG_B, offseta -= fix32ToInt(player.x_vel) >> 3);
-}
 void initGame()
 {
     VDP_clearTextArea(0,10,40,10);
@@ -119,30 +109,9 @@ void initGame()
 
     XGM_setLoopNumber(-1);
     XGM_startPlay(&boss);
-    drawBackground();
     SPR_init(0,0,0);
     badguy.sprite =  SPR_addSprite(&enemy, badguy.x, badguy.y, TILE_ATTR(PAL2, 0, FALSE, FALSE));
     player.sprite =  SPR_addSprite(&character, player.x, player.y, TILE_ATTR(PAL2, 0, FALSE, FALSE));
-}
-
-void drawBackground()
-{
-    int tile = 0;
-    int x_cam_high = camera_x + 64;
-    for (int x = camera_x; x < x_cam_high; x++)
-    {
-        for (int y = 0; y < 15; y++)
-        {
-        }
-    }
-
-}
-
-void updateBackground()
-{
-    int tile = 0;
-    for (int y = 0; y < 15; y++){
-    }
 }
 
 void positionPlayer()
@@ -159,6 +128,7 @@ void positionPlayer()
         player.y_vel = FIX32(0);
         player.y = FIX32(100);
     }
+    camera_x = fix32ToInt(player.x) - 100;
     SPR_setPosition(player.sprite, fix32ToInt(player.x) , fix32ToInt(player.y));
     animatePlayer();
 }
