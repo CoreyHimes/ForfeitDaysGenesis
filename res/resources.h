@@ -12,6 +12,7 @@ extern const TileSet bga_tileset;
 extern const TileSet bgb_tileset;
 extern const SpriteDefinition character;
 extern const SpriteDefinition enemy;
+extern const SpriteDefinition unicornt;
 extern const MapDefinition bga_map;
 extern const MapDefinition bgb_map;
 

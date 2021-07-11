@@ -33,9 +33,12 @@ void titleScreen();
 void respawnPlayer();
 void animatePlayer();
 void backgroundCollision();
+void positionCamera();
+void renderEntities();
+void moveEntities();
 
-Entity player = {FIX32(100), FIX32(100), FIX32(0), FIX32(0), 32, 16, };
-Entity badguy = {FIX32(200), FIX32(100), FIX32(-2), FIX32(0), 16, 16, };
+Entity player = {FIX32(10), FIX32(80), FIX32(0), FIX32(0), 32, 16, };
+Entity badguy = {FIX32(200), FIX32(100), FIX32(0), FIX32(0), 16, 16, };
 bool player_is_jumping = FALSE;
 
 int load_title_screen;  //maybe make an enum of states later
@@ -56,7 +59,6 @@ int main()
     memcpy(&palette[0], palette_background.data, 16 * 2);
     memcpy(&palette[16], palette_foreground.data, 16 * 2);
     memcpy(&palette[32], palette_char.data, 16 * 2);
-    
 
     u16 ind;
     // set all palette to black
@@ -89,9 +91,15 @@ int main()
     XGM_startPlay(&intro);
     while(1)
     {
-        MAP_scrollTo(bga, camera_x, 0);
-        MAP_scrollTo(bgb, camera_x>>4, 0);
+        MAP_scrollTo(bga, camera_x, 100);
+        MAP_scrollTo(bgb, camera_x>>4, 100);
         positionPlayer();
+        
+        moveEntities();
+        renderEntities();
+        checkCollision(player, badguy);
+
+        positionCamera();
         SPR_update();
         SYS_doVBlankProcess();
     }
@@ -101,63 +109,98 @@ int main()
 void initGame()
 {
     VDP_clearTextArea(0,10,40,10);
-    player.x = FIX32(144);
-    player.y = FIX32(80);
+    player.x = FIX32(10);
+    player.y = FIX32(140);
     badguy.x = FIX32(200);
-    badguy.y = FIX32(100);
+    badguy.y = FIX32(156);
     lives = 3;
 
     XGM_setLoopNumber(-1);
     XGM_startPlay(&boss);
     SPR_init(0,0,0);
     badguy.sprite =  SPR_addSprite(&enemy, badguy.x, badguy.y, TILE_ATTR(PAL2, 0, FALSE, FALSE));
+    SPR_setPosition(badguy.sprite, fix32ToInt(badguy.x), fix32ToInt(badguy.y));
     player.sprite =  SPR_addSprite(&character, player.x, player.y, TILE_ATTR(PAL2, 0, FALSE, FALSE));
+
 }
 
 void positionPlayer()
 {
-    player.y = fix32Add(player.y_vel, player.y);
     player.x = fix32Add(player.x_vel, player.x);
+    player.y = fix32Add(player.y_vel, player.y);
     if (player_is_jumping == TRUE)
     {
         player.y_vel = fix32Add(player.y_vel, FIX32(.1));
     }
-    if (fix32ToInt(player.y) >= 100 && player_is_jumping == TRUE)
+    if (fix32ToInt(player.y) >= 140 && player_is_jumping == TRUE)
     {
         player_is_jumping = FALSE;
         player.y_vel = FIX32(0);
-        player.y = FIX32(100);
+        player.y = FIX32(140);
     }
-    camera_x = fix32ToInt(player.x) - 100;
-    SPR_setPosition(player.sprite, fix32ToInt(player.x) , fix32ToInt(player.y));
+    if (player.x < FIX32(0)) {
+        player.x = FIX32(0);
+    }
+    if (player.x > FIX32(7900)) {
+        player.x = FIX32(7900);
+    }
+    int temp_x = fix32ToInt(player.x) - camera_x;
+    SPR_setPosition(player.sprite, temp_x, fix32ToInt(player.y));
     animatePlayer();
 }
 
-void backgroundCollision()
+void renderEntities()
 {
-    //get indexes of level array that player is hovering
-    int leftPlayer = fix32ToInt(player.x) >> 3;
-    int rightPlayer = (fix32ToInt(player.x) + player.width) >> 3;
-    int playerTop = fix32ToInt(player.y) >> 3;
-    int playerBottom = (fix32ToInt(player.y) + player.height) >> 3;
-    //char str[80];
+    int distance = abs(camera_x - fix32ToInt(badguy.x));
+    if (distance > 180){
+        return;
+    }
+    int temp_x = fix32ToInt(badguy.x) - camera_x;
+    SPR_setPosition(badguy.sprite, temp_x, fix32ToInt(badguy.y));
+}
 
-    //sprintf(str, "left = %i right = %i", playerTop, playerBottom);
-
-    //VDP_drawText(str, 0, 0);
-    for (int x = leftPlayer; x <= rightPlayer; x++){
-        for (int y = playerTop; y <= playerBottom; y++){
+void moveEntities()
+{
+    int distance = abs(player.x - badguy.x);
+    if (distance > 100000) {
+        return;
+    }
+    if (badguy.x > player.x)
+    {
+        if (badguy.x_vel > FIX32(-1.5)){
+            SPR_setHFlip(badguy.sprite, FALSE);
+            badguy.x_vel = fix32Sub(badguy.x_vel, FIX32(.1));
         }
-    }   
+    }
+    if (badguy.x < player.x)
+    {
+        if (badguy.x_vel < FIX32(1.5)){
+            SPR_setHFlip(badguy.sprite, TRUE);
+            badguy.x_vel = fix32Add(badguy.x_vel, FIX32(.1));
+        }
+    }
+    badguy.x = badguy.x + badguy.x_vel;
+}
+
+void positionCamera()
+{
+    camera_x = fix32ToInt(player.x) - 120;
+    if (camera_x > 7900) {
+        camera_x = 7900;
+    }
+    if (camera_x < 0) {
+        camera_x = 0;
+    }
 }
 
 //box collision only for now
 void checkCollision(Entity entity1, Entity entity2)
 {
-
+    //respawnPlayer();
     if (((entity1.x < entity2.x) & ((entity1.width + fix32ToInt(entity1.x)) > fix32ToInt(entity2.x))) |
         ((entity2.x < entity1.x) & ((entity2.width + fix32ToInt(entity2.x)) > fix32ToInt(entity1.x))))
     {
+
         if (((entity1.y < entity2.y) & ((entity1.height + fix32ToInt(entity1.y)) > fix32ToInt(entity2.y))) |
          ((entity2.y < entity1.y) & ((entity2.height + fix32ToInt(entity2.y)) > fix32ToInt(entity1.y))))
         {
@@ -192,7 +235,7 @@ void respawnPlayer()
     {
         load_title_screen = TRUE;
         XGM_setLoopNumber(0);
-         XGM_startPlay(&intro);
+        XGM_startPlay(&intro);
         return;
     }
     player.x = FIX32(10);
@@ -219,13 +262,13 @@ void handleInput(u16 gamePad, u16 changed, u16 state)
                     XGM_pausePlay();
 
                 }
-                else {
+                else 
+                {
                     paused = FALSE;
-                    XGM_resumePlay();
-                    
+                    XGM_resumePlay();                    
                 }
-
-            } else 
+            } 
+            else 
             {
                 load_title_screen = FALSE;   
                 initGame();                   
@@ -260,12 +303,5 @@ void handleInput(u16 gamePad, u16 changed, u16 state)
                 //XGM_startPlayPCM(SFX_TEST,1,SOUND_PCM_CH2);
             }
         }
-        else
-        {
-            if (changed & BUTTON_C)
-            {
-                //player_vel_y = 0;
-            }
-        }  
     }
 }

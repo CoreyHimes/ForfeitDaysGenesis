@@ -11,6 +11,7 @@ MAP bgb_map "maps/Level_1_BG.png" bgb_tileset BEST 0
 
 SPRITE character  "sprites/playermultianimation.png" 2 4 NONE 5
 SPRITE enemy  "sprites/enemy.png" 2 2 NONE
+SPRITE unicornt  "sprites/Unicorn.png" 6 4 NONE
 XGM    intro  "music/intro.vgm"
 XGM    cave  "music/cave.vgm"
 XGM    boss  "music/boss.vgm"
